@@ -48,8 +48,8 @@ T2 = full(sparse(  [1     1      1      2      3     ], ... % case: co-feeding
                    [1     -Y     -Y     1      -1    ],3,cnap.numr));
 t2 =  [  0 ; 0 ; -1];
 % Desired region
-D1 = full(sparse( 1,r_bm,-1,1,cnap.numr));
-d1 = -1;
+D = full(sparse( 1,r_bm,-1,1,cnap.numr));
+d = -1;
 
 % Definition of deletable, addable and non-targetable
 koable = find(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'r\d\d')))); % all numbered reactions are knockable
@@ -60,10 +60,6 @@ koCost(koable) = 1;
 kiCost(kiable) = 1;
 
 % MCS computation
-mcs  = CNAMCSEnumerator2(cnap, {T1,T2} , {t1,t2} , {D1} , {d1} ,...
-                koCost,kiCost, ... koCost, kiCost
-                inf,cnap.numr,inf,... max_solutions,maxCost,time_limit
-                0,2, ... use_bigM, enum_method
-                1,1,1); % use_compression, verbose, debug
+mcs  = CNAMCSEnumerator2(cnap, {T1,T2}, {t1,t2}, D, d,koCost,kiCost);
 disp([ {'MCS No.  ->'} num2cell(1:size(mcs,2)) ;[cellstr(cnap.reacID) num2cell(mcs)]]);
 disp('Additions are marked with 1, deletions with -1, NaN marks addition candidates that were not added.');

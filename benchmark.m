@@ -14,12 +14,11 @@
 %   or iML1515.mat (for computation in genome scale model)
 %
 % % key variables:
-%   compression: 3x1 double/logical vector
-%       defines the compression steps used: 
-%       1st digit - initial network compression (on/off)
-%       2nd digit - compression with GPR rules (on/off)
-%       3rd digit - final network compression (on/off)
-%       (default: [0 1 1])
+%   options: struct that can be used to set MILP-, pre- and postprocessing parameters
+%       Most important for this benchmark are: 
+%       options.compression_network_pre_GPR - initial network compression (on/off) (default  off)
+%       options.compression_GPR - compression with GPR rules (on/off) (default  on)
+%       options.compression_network_pre_milp - final network compression (on/off) (default  on)
 %   max_num_interv: defines the maximum number of possible gene cuts
 %   model: setting model = 'ECC2' (default) will load the core-setup.
 %                  model = 'iML1515' will load the genome-scale setup.
@@ -33,31 +32,31 @@
 %   5) Characterize and Rank results
 %
 % Correspondence: cellnetanalyzer@mpi-magdeburg.mpg.de
-% -Mar 2020
+% -Jun 2020
 %
 
 %% 0) Starting CNA and Parallel pool (for faster FVA), defining compression setting
 if ~exist('cnan','var')
     startcna(1)
 end
-% Standard Case:
-% GPR rule compression + network compression, but not first network
-% compression.
-compression = [0 1 1];
-time_limit = inf; % seconds
-max_solutions = inf;
-enum_method = 2;
-
+if ~exist('model','var')
+    model = 'ECC2'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
+end
+max_solutions           = inf;
+options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
+options.preproc_D_leth               = false;
+options.compression_network_pre_GPR  = false;
+options.compression_GPR              = true;
+options.compression_network_pre_milp = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
-% switch is overwritten
+% switches (and also other parameters if indicated) are overwritten
+if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
+    [options,model] = derive_options_from_SLURM_array(str2double(getenv('SLURM_ARRAY_TASK_ID')));
+end
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
-    if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-        compression = str2double(getenv('SLURM_ARRAY_TASK_ID'));
-        compression = de2bi(compression,3);
-    end
 % If running on local machine, start parallel pool and keep compression
 % flags as defined above.
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
@@ -65,12 +64,12 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
     parpool(); % remove this line if MATLAB Parallel Toolbox is not available
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
-disp(['compression: ' num2str(compression)]);
+options.preproc_check_feas = false;
+options.milp_time_limit    = inf;
+options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
+
 %% 1) Model setup
 % load model from file
-if ~exist('model','var')
-    model = 'ECC2'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
-end
 switch model
     case 'iML1515'
         load('iML1515.mat')
@@ -104,7 +103,9 @@ rBM       = find(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'BIOMASS_.*_core
 % minimum yield of 30%
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_ex,-1,1,cnap.numr)));
 Y_thresh = Ymax_23bdo_per_glc * 0.3;
+disp('');
 disp(['Minimum product yield threshold set to ' num2str(Y_thresh)]);
+disp('');
 T = full(sparse(  [1         1        ], ... % case: single substrate
                   [r23BDO_ex rGlc_ex  ], ...
                   [1         Y_thresh ],1,cnap.numr));
@@ -132,10 +133,10 @@ gkoCost(ismember(genes,'spontanous')) = nan;
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
                                                     rkoCost,[], ... % reackoCost,reackiCost
-                                                    max_solutions,max_num_interv,time_limit,... max_solutions,max_num_interv,time_limit
-                                                    0,enum_method,gkoCost,[], ... use_bigM, enum_method, genekoCost, genekiCost
-                                                    [],compression,... gpr_rules,use_compression
-                                                    1, 1); % verbose, debug
+                                                    max_solutions,max_num_interv, ...
+                                                    gkoCost,[], ...  genekoCost, genekiCost
+                                                    [],options,... gpr_rules,options
+                                                    1); % verbose, debug
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 
@@ -219,3 +220,37 @@ end
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
 clear(a{:});
+
+function [options,model] = derive_options_from_SLURM_array(numcode)
+    settings = numcode;
+    settings = arrayfun(@str2num,dec2bin(settings,10));
+    options.milp_split_level             = settings(1);
+    options.milp_reduce_constraints      = settings(2);
+    options.milp_combined_z              = settings(3);
+    options.milp_irrev_geq               = settings(4);
+    options.preproc_D_leth               = settings(5);
+    options.compression_network_pre_GPR  = settings(6);
+    options.compression_GPR              = settings(7);
+    options.compression_network_pre_milp = settings(8);
+    if settings(9)
+        model = 'iML1515';
+    else
+        model = 'ECC2';
+    end
+    if settings(10)
+        options.milp_solver = 'matlab_cplex';
+    else
+        options.milp_solver = 'java_cplex';
+    end
+    disp(['Test ID: ' num2str(settings([1 2 3 4 5])) '-' num2str(settings([6 7 8]))]);
+    disp(['split level: '    num2str(settings(1))]);
+    disp(['reduce_constraints: ' num2str(settings(2))]);
+    disp(['combined_z: '     num2str(settings(3))]);
+    disp(['irrev_geq: '      num2str(settings(4))]);
+    disp(['preproc_D_leth: ' num2str(settings(5))]);
+    disp(['Net compress 1: ' num2str(settings(6))]);
+    disp(['GPR compress: '   num2str(settings(7))]);
+    disp(['Net compress 2: ' num2str(settings(8))]);
+    disp(['Model: ' model]);
+    disp(['Using CPLEX MATLAB (1) or JAVA (0) API: ' num2str(settings(10))]);
+end

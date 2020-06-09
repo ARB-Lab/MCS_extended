@@ -65,11 +65,7 @@ koCost(koable) = 1;
 % A detailed explanation is given in the main funcion.
 
 % MCS computation
-[rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, {T} , {t} , {D} , {d} ,...
-                                                    koCost,[], ... reackoCost,reackiCost
-                                                    inf,cnap.numr,inf,... max_solutions,max_num_interv,time_limit
-                                                    0, 2, [],[], ... use_bigM, enum_method, gkoCost, gkiCost
-                                                    [],[0 1 1],1,1); % gpr_rules,use_compression,
+[rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d, koCost);
 % Additions are denoted with 1, deletions with -1 (here no solution contains deletions)
 disp([cellstr(gcnap.reacID) num2cell(gmcs)]);
 disp('The MCSs refer to the GPR-rule extended metabolic network. Knockouts are marked by -1.');

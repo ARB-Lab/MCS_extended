@@ -33,30 +33,39 @@
 if ~exist('cnan','var')
     startcna(1)
 end
-% GPR rule compression + final network compression
-compression = [0 1 1];
-time_limit = inf; % seconds
+if ~exist('model','var')
+    model = 'ECC2'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
+end
+max_solutions   = inf;
 max_num_interv  = 6;
-max_solutions = inf;
-enum_method = 2;
-disp(['time limit ' num2str(time_limit) 's'])
-
+options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
+options.milp_split_level             = true;
+options.milp_reduce_constraints      = true;
+options.milp_combined_z              = true;
+options.milp_irrev_geq               = true;
+options.preproc_D_leth               = false;
+options.compression_network_pre_GPR  = false;
+options.compression_GPR              = true;
+options.compression_network_pre_milp = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
-% switch is overwritten
+% switches are overwritten
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
-    if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-        compression = str2double(getenv('SLURM_ARRAY_TASK_ID'));
-        compression = de2bi(compression,3);
+    if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
+        [options,model] = derive_options_from_SLURM_array(str2double(getenv('SLURM_ARRAY_TASK_ID')));
     end
+% If running on local machine, start parallel pool and keep compression
+% flags as defined above.
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
        (~isempty(ver('parallel'))  || ~isempty(ver('distcomp'))) && isempty(gcp('nocreate'))
     parpool(); % remove this line if MATLAB Parallel Toolbox is not available
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
-disp(['compression: ' num2str(compression)]);
+options.preproc_check_feas = false;
+options.milp_time_limit    = inf;
+options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
 %% 1) Model setup
 % load model
 load('iML1515.mat')
@@ -146,10 +155,10 @@ rkiCost([rGlc_up rAc_up rGlyc_up]) = 0;
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
                                                     rkoCost,rkiCost, ... % reackoCost,reackiCost
-                                                    max_solutions,max_num_interv,time_limit,... max_solutions,max_num_interv,time_limit
-                                                    0, enum_method, gkoCost, gkiCost,... use_bigM, enum_method, genekoCost, genekiCost,
-                                                    [],compression,... gpr_rules,use_compression
-                                                    1, 0); % verbose, debug
+                                                    max_solutions,max_num_interv, ...
+                                                    gkoCost,gkiCost, ...  genekoCost, genekiCost
+                                                    [],options,... gpr_rules,options
+                                                    1); % verbose, debug
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 
@@ -162,9 +171,9 @@ else
 end
 
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-    filename = ['des2tar2-' getenv('SLURM_JOB_ID')];
+    filename = ['des2tar2-' model '-' getenv('SLURM_JOB_ID')];
 else
-    filename = ['des2tar2-' datestr(date,'yyyy-mm-dd')];
+    filename = ['des2tar2-' model '-' datestr(date,'yyyy-mm-dd')];
 end
 save([filename '.mat'],'gcnap','gmcs','valid');
 
@@ -235,3 +244,37 @@ save([filename '.mat'],'gmcs_rmcs_map','MCS_rankingStruct','MCS_rankingTable','c
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
 clear(a{:});
+
+function [options,model] = derive_options_from_SLURM_array(numcode)
+    settings = numcode;
+    settings = arrayfun(@str2num,dec2bin(settings,10));
+    options.milp_split_level             = settings(1);
+    options.milp_reduce_constraints      = settings(2);
+    options.milp_combined_z              = settings(3);
+    options.milp_irrev_geq               = settings(4);
+    options.preproc_D_leth               = settings(5);
+    options.compression_network_pre_GPR  = settings(6);
+    options.compression_GPR              = settings(7);
+    options.compression_network_pre_milp = settings(8);
+    if settings(9)
+        model = 'iML1515';
+    else
+        model = 'ECC2';
+    end
+    if settings(10)
+        options.milp_solver = 'matlab_cplex';
+    else
+        options.milp_solver = 'java_cplex';
+    end
+    disp(['Test ID: ' num2str(settings([1 2 3 4 5])) '-' num2str(settings([6 7 8]))]);
+    disp(['split level: '    num2str(settings(1))]);
+    disp(['reduce_constraints: ' num2str(settings(2))]);
+    disp(['combined_z: '     num2str(settings(3))]);
+    disp(['irrev_geq: '      num2str(settings(4))]);
+    disp(['preproc_D_leth: ' num2str(settings(5))]);
+    disp(['Net compress 1: ' num2str(settings(6))]);
+    disp(['GPR compress: '   num2str(settings(7))]);
+    disp(['Net compress 2: ' num2str(settings(8))]);
+    disp(['Model: ' model]);
+    disp(['Using CPLEX MATLAB (1) or JAVA (0) API: ' num2str(settings(10))]);
+end
