@@ -2,8 +2,8 @@
 %
 % MCS computation for the strain design of a 2,3-butanediol production host
 %
-% We enumerate all Minimal Gene Cut Sets up to the size of 7
-% for the strongly growth coupled production of 2,3-butanediol 
+% We enumerate all Minimal Gene Cut Sets up to the size of 9 (core) and 
+% 7 (genome-scale) for the strongly growth coupled production of 2,3-butanediol 
 % from Glucose with S. scerevisiae. The setup is used to benchmark runtime benefits 
 % from network and GPR rule compression for MCS computation. The results for 
 % the genome-scale setup also serve as a reference for the other MCS computation 
@@ -15,13 +15,7 @@
 %   yeast_BiGGrxnDictionary.csv
 %
 % % key variables:
-%   options: compression settings
-%       options.compression_network_pre_GPR - initial network compression (on/off) (default off)
-%       options.compression_GPR - compression with GPR rules (on/off) (default on)
-%       options.compression_network_pre_milp - final network compression (on/off) (default on)
 %   max_num_interv: defines the maximum number of possible gene cuts
-%   model: setting model = 'ECC2' (default) will load the core-setup.
-%                  model = 'iML1515' will load the genome-scale setup.
 %
 % % process:
 %   0) Start parallel pool to speed up FVAs
@@ -39,23 +33,13 @@
 if ~exist('cnan','var')
     startcna(1)
 end
-max_solutions           = inf;
-options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
-options.preproc_D_leth               = false;
-options.compression_network_pre_GPR  = false;
-options.compression_GPR              = true;
-options.compression_network_pre_milp = true;
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches (and also other parameters if indicated) are overwritten
-if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
-    settings = str2double(getenv('SLURM_ARRAY_TASK_ID'));
-    settings = arrayfun(@str2num,dec2bin(settings,2));
-    options.compression_GPR              = settings(1);
-    options.compression_network_pre_milp = settings(2);
-    disp(['GPR compress: '   num2str(settings(1))]);
-    disp(['Net compress: '   num2str(settings(2))]);
-end
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
@@ -68,8 +52,8 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
 end
 options.milp_time_limit    = inf;
 options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
+max_solutions              = inf;
 max_num_interv             = 7;
-
 %% 1) Model setup
 % load model from file
 model = 'YeastGEM'; 
@@ -126,6 +110,7 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 % some reaction indices used in Target and Desired regions
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
+rATPM     = find(strcmp(cellstr(cnap.reacID),'ATPM'));
 rBM       = find(cnap.objFunc);
 % Target region: First compute maximum possible yield, then demand a
 % minimum yield of 30%
@@ -138,13 +123,15 @@ T = full(sparse(  [1         1        2       ], ... % case: single substrate
 t = [ 0 ; -0.1 ];
 
 % Desired region: Biomass production rate > 0.05 h^-1
-D = full(sparse( 1, rBM, -1,1,cnap.numr));
-d = -0.05;
+D1 = full(sparse( 1, rBM,   -1,1,cnap.numr));
+d1 = -0.05;
+D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
+d2 = -18;
 
 T = {T};
 t = {t};
-D = {D};
-d = {d};
+D = {D1 D2};
+d = {d1 d2};
 
 % knockables: All reactions with gene rules + O2 exchange as a potential knockout
 rkoCost = double(cellfun(@(x) ~isempty(x),CNAgetGenericReactionData_as_array(cnap,'geneProductAssociation')));
@@ -174,12 +161,15 @@ else
     valid = [];
 end
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-    filename = ['benchmark-' model '-' getenv('SLURM_ARRAY_TASK_ID') '-' getenv('SLURM_JOB_ID')];
+    filename = ['desired2-' model '-' getenv('SLURM_JOB_ID')];
 else
-    filename = ['benchmark-' model '-' datestr(date,'yyyy-mm-dd')];
+    filename = ['desired2-' model '-' datestr(date,'yyyy-mm-dd')];
 end
 save([filename '.mat'],'gcnap','gmcs','valid','comp_time');
 
+% remove this statement to characterize and rank the computed MCS
+rmpath(function_path);
+return;
 
 %% 5) Characterization and ranking of MCS
 % Instead of the gene-MCS, their corresponding reaction-representations are analyzed.
@@ -245,4 +235,5 @@ end
 % clear irrelevant variables
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
+rmpath(function_path);
 clear(a{:});

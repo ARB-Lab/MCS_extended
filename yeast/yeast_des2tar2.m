@@ -40,6 +40,10 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches (and also other parameters if indicated) are overwritten
@@ -155,11 +159,13 @@ D1 = full(sparse( [1         1          1       ], ...
                   [rBM       rGlc_up    rAc_up  ], ...
                   [-6        -6*Y_BM    -2*Y_BM ],1,cnap.numr));
 d1 = 0;
+D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
+d2 = -18;
 
 T = {T1 T2};
 t = {t1 t2};
-D = {D1};
-d = {d1};
+D = {D1 D2};
+d = {d1 d2};
 
 % knockables: All reactions with gene rules + O2 exchange as a potential knockout
 rkoCost = nan(cnap.numr,1);
@@ -193,13 +199,15 @@ else
     valid = [];
 end
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-    filename = ['des1tar2-' model '-' getenv('SLURM_JOB_ID')];
+    filename = ['des2tar2-' model '-' getenv('SLURM_JOB_ID')];
 else
-    filename = ['des1tar2-' model '-' datestr(date,'yyyy-mm-dd')];
+    filename = ['des2tar2-' model '-' datestr(date,'yyyy-mm-dd')];
 end
 save([filename '.mat'],'gcnap','gmcs','valid');
 
 % remove this statement to characterize and rank the computed MCS
+rmpath(function_path);
+return;
 
 %% 5) Characterization and ranking of MCS
 % Instead of the gene-MCS, their corresponding reaction-representations are analyzed.
@@ -264,4 +272,5 @@ save([filename '.mat'],'gmcs_rmcs_map','MCS_rankingStruct','MCS_rankingTable','c
 % clear irrelevant variables
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
+rmpath(function_path);
 clear(a{:});

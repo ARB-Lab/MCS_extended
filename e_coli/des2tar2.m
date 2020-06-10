@@ -1,25 +1,21 @@
-% This script reproduces the results from Table 2, scenario 3. 
+% This script reproduces the results from Table 2, scenario 4. 
 %
 % MCS computation for the strain design of a 2,3-butanediol production host
-% using co-feeding
+% using co-feeding and supporting high ATP maintenance rates
 %
 % We enumerate all Minimal Gene Cut Sets up to the size of 6 for the
 % strongly growth coupled production of 2,3-butanediol from glucose and/or
-% acetate and/or glycerol with Pseudomonas putida. Compared to the first scenario 
-% ("benchmark"), (1) acetate and glycerol supply are added to the model as 
-% substrate alternatives and glucose is no longer a mandatory substrate. 
-% Now any combination of the three substrates may be used. All three uptake 
-% reactions are defined as "knock-in-able" so that the MCS algorithm can 
-% choose their addition individually. (2) a second Target region is introduced 
-% to correctly determine the demanded yield threshold in a case differentiation 
-% (For details, read chapter "results"). GPR rule compression and network 
+% acetate and/or glycerol with E. coli. Compared to the third scenario, a 
+% second desired region is introduced to make sure all found strain designs 
+% support higher ATP demands (18 mM/gBDW/h). GPR rule compression and network 
 % compression are enabled to speed up the MCS computation.
 %
 % % required files/models:
-%   or iJN746.mat 
+%   iML1515.mat
 %
-% % key variables:
-%   max_num_interv: defines the maximum number of possible gene cuts
+% % important variables:
+%   max_num_interv - defines the maximum number of possible gene cuts and
+%                    substrate additions
 %
 % % process:
 %   0) Start parallel pool to speed up FVAs
@@ -37,12 +33,33 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
+if ~exist('model','var')
+    model = 'ECC2'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
+end
+max_solutions   = inf;
+max_num_interv  = 6;
+options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
+options.milp_split_level             = true;
+options.milp_reduce_constraints      = true;
+options.milp_combined_z              = true;
+options.milp_irrev_geq               = true;
+options.preproc_D_violations         = 0;
+options.pre_GPR_network_compression  = false;
+options.compression_GPR              = true;
+options.preproc_compression          = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
-% switches (and also other parameters if indicated) are overwritten
+% switches are overwritten
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
+    if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
+        [options,model] = derive_options_from_SLURM_array(str2double(getenv('SLURM_ARRAY_TASK_ID')));
+    end
 % If running on local machine, start parallel pool and keep compression
 % flags as defined above.
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
@@ -50,39 +67,13 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
     parpool(); % remove this line if MATLAB Parallel Toolbox is not available
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
+options.preproc_check_feas = false;
 options.milp_time_limit    = inf;
 options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
-max_solutions              = inf;
-max_num_interv             = 6;
 %% 1) Model setup
-% load model from file
-
-model = 'iJN746'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
-load('iJN746.mat')
-cnap = CNAcobra2cna(iJN746);
-reac_in_core_metabolism = true(cnap.numr,1);
-
-cnap.reacMin(cnap.reacMin <= -1000) = -1000;
-cnap.reacMax(cnap.reacMax >=  1000) =  1000;
-cnap.specNotes = strcat('[', iJN746.metFormulas, ']')';
-
-DM_SK_reacs = find(~cellfun(@isempty,regexp(cellstr(cnap.reacID),'(DM_|SK_)')));
-DM_SK_min = cnap.reacMin(DM_SK_reacs);
-DM__SK_max = cnap.reacMax(DM_SK_reacs);
+% load model
+load('iML1515.mat')
 cnap = block_non_standard_products(cnap);
-cnap.reacMin(DM_SK_reacs(DM_SK_min<0)) = -0.5;
-cnap.reacMin(DM_SK_reacs(DM_SK_min==0)) = 0;
-cnap.reacMax(DM_SK_reacs) = 0.5;
-cnap.reacMin(ismember(cnap.reacID,{'EX_glc__D_e'})) = -10;
-cnap.reacMax(ismember(cnap.reacID,{'EX_gly_e'})) = 1000;
-cnap.reacMax(ismember(cnap.reacID,{'EX_glyclt_e'})) = 1000;
-cnap.reacMin(logical(cnap.objFunc)) = 0; % make lower bound for biomass reaction zero
-cnap = CNAsetGenericReactionData_with_array(cnap,'geneProductAssociation',iJN746.grRules);
-
-cnap = CNAaddReactionMFN(cnap,'EX_o2_anaer_e','1 o2_e = ' ,-0.2,0,0,nan,0,...
-'//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
-cnap = CNAaddReactionMFN(cnap,'ATPM','atp_c + 1 h2o_c = 1 h_c + 1 adp_c + 1 pi_c' ,1,1000,0,nan,0,...
-'//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
 
 % Add pathway from DOI 10.1186/s12934-018-1038-0 Erian, Pfluegl 2018
 cnap = CNAaddSpeciesMFN(cnap,'actn_c',0,'Acetoin');
@@ -110,7 +101,7 @@ rGlyc_up = find(strcmp(cellstr(cnap.reacID),'EX_glyc_e'));
 rAc_up   = find(strcmp(cellstr(cnap.reacID),'EX_ac_up_e'));
 rAc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_ac_e'));
 rATPM    = find(strcmp(cellstr(cnap.reacID),'ATPM'));
-rBM      = find(cnap.objFunc);
+rBM      = find(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'BIOMASS_.*_core_.*'))));
 
 % Target region - Yield is now referred to carbon uptake with 23bdo/glc as
 % the reference. The strain design task is to enforce a yield of 30% compared
@@ -129,9 +120,9 @@ T1 = full(sparse( [1         1          1          ], ...
 t1 =  0;
 % T2: If Acetate is not secreted, the 2,3 BDO / glc+glyc+ac yiled should exceed
 %     the yield threshold
-T2 = full(sparse( [1         1          1           1           2      ], ...
-                  [r23BDO_ex rGlc_up    rGlyc_up    rAc_up      rAc_ex ], ...
-                  [4         6*Y_thresh	3*Y_thresh	2*Y_thresh  1      ],2,cnap.numr));
+T2 = full(sparse( [1         1          1           1           2       ], ...
+                  [r23BDO_ex rGlc_up    rGlyc_up    rAc_up      rAc_ex  ], ...
+                  [4         6*Y_thresh	3*Y_thresh	2*Y_thresh  1       ],2,cnap.numr));
 t2 =  [  0 ; 0 ];
 
 % Desired regions: 
@@ -143,11 +134,13 @@ D1 = full(sparse( [1         1          1          1       ], ...
                   [rBM       rGlc_up    rGlyc_up   rAc_up  ], ...
                   [-6        -6*Y_BM    -3*Y_BM    -2*Y_BM ],1,cnap.numr));
 d1 = 0;
+D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
+d2 = -18;
 
 T = {T1 T2};
 t = {t1 t2};
-D = {D1};
-d = {d1};
+D = {D1 D2};
+d = {d1 d2};
 
 % knockables: All reactions with gene rules + O2 exchange as a potential knockout
 rkoCost = nan(cnap.numr,1);
@@ -180,14 +173,16 @@ if full(~all(all(isnan(gmcs)))) % if mcs have been found
 else
     valid = [];
 end
+
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-    filename = ['des1tar2-' model '-' getenv('SLURM_JOB_ID')];
+    filename = ['des2tar2-' model '-' getenv('SLURM_JOB_ID')];
 else
-    filename = ['des1tar2-' model '-' datestr(date,'yyyy-mm-dd')];
+    filename = ['des2tar2-' model '-' datestr(date,'yyyy-mm-dd')];
 end
 save([filename '.mat'],'gcnap','gmcs','valid');
 
 % remove this statement to characterize and rank the computed MCS
+rmpath(function_path);
 return
 
 %% 5) Characterization and ranking of MCS
@@ -233,7 +228,7 @@ if full(~all(all(isnan(gmcs)))) % if mcs have been found
     gene_and_reac_names(gcnap.rType == 'g') = genes; % to avoid the 'GR-' prefix
   % 5.5) Start characterization and ranking
     [MCS_rankingStruct, MCS_rankingTable]...
-        = CNAcharacterizeGeneMCS( cnap , MCS_mut_lb, MCS_mut_ub, 1:size(MCS_mut_lb,2),... model, mutants LB,UB, incices ranked mcs
+        = CNAcharacterizeGenesMCS( cnap , MCS_mut_lb, MCS_mut_ub, 1:size(MCS_mut_lb,2),... model, mutants LB,UB, incices ranked mcs
         idx, idx.cytMet, D, d, T, t, mdfParam, ... relevant indices, Desired and Target regions
         lbCore, ubCore, gmcs, intvCost, gene_and_reac_names, gmcs_rmcs_map, ...
         0:10, ones(1,10),2); % assessed criteria and weighting factors
@@ -253,4 +248,43 @@ save([filename '.mat'],'gmcs_rmcs_map','MCS_rankingStruct','MCS_rankingTable','c
 % clear irrelevant variables
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
+rmpath(function_path);
 clear(a{:});
+
+function [options,model] = derive_options_from_SLURM_array(numcode)
+    settings = numcode;
+    settings = arrayfun(@str2num,dec2bin(settings,10));
+    options.milp_split_level             = settings(1);
+    options.milp_reduce_constraints      = settings(2);
+    options.milp_combined_z              = settings(3);
+    options.milp_irrev_geq               = settings(4);
+    if settings(5)
+        options.preproc_D_violations     = 2;
+    else
+        options.preproc_D_violations     = 0;
+    end
+    options.pre_GPR_network_compression  = settings(6);
+    options.compression_GPR              = settings(7);
+    options.preproc_compression          = settings(8);
+    if settings(9)
+        model = 'iML1515';
+    else
+        model = 'ECC2';
+    end
+    if settings(10)
+        options.milp_solver = 'matlab_cplex';
+    else
+        options.milp_solver = 'java_cplex';
+    end
+    disp(['Test ID: ' num2str(settings([1 2 3 4 5])) '-' num2str(settings([6 7 8]))]);
+    disp(['split level: '    num2str(settings(1))]);
+    disp(['reduce_constraints: ' num2str(settings(2))]);
+    disp(['combined_z: '     num2str(settings(3))]);
+    disp(['irrev_geq: '      num2str(settings(4))]);
+    disp(['preproc_D_leth: ' num2str(settings(5))]);
+    disp(['Net compress 1: ' num2str(settings(6))]);
+    disp(['GPR compress: '   num2str(settings(7))]);
+    disp(['Net compress 2: ' num2str(settings(8))]);
+    disp(['Model: ' model]);
+    disp(['Using CPLEX MATLAB (1) or JAVA (0) API: ' num2str(settings(10))]);
+end

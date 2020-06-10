@@ -16,9 +16,9 @@
 % % key variables:
 %   options: struct that can be used to set MILP-, pre- and postprocessing parameters
 %       Most important for this benchmark are: 
-%       options.compression_network_pre_GPR - initial network compression (on/off) (default  off)
+%       options.pre_GPR_network_compression - initial network compression (on/off) (default  off)
 %       options.compression_GPR - compression with GPR rules (on/off) (default  on)
-%       options.compression_network_pre_milp - final network compression (on/off) (default  on)
+%       options.preproc_compression  - final network compression (on/off) (default  on)
 %   max_num_interv: defines the maximum number of possible gene cuts
 %   model: setting model = 'ECC2' (default) will load the core-setup.
 %                  model = 'iML1515' will load the genome-scale setup.
@@ -39,15 +39,19 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
 if ~exist('model','var')
     model = 'ECC2'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
 end
 max_solutions           = inf;
 options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
-options.preproc_D_leth               = false;
-options.compression_network_pre_GPR  = false;
+options.preproc_D_violations         = 0;
+options.pre_GPR_network_compression  = false;
 options.compression_GPR              = true;
-options.compression_network_pre_milp = true;
+options.preproc_compression          = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches (and also other parameters if indicated) are overwritten
@@ -155,6 +159,7 @@ end
 save([filename '.mat'],'gcnap','gmcs','valid','comp_time');
 
 % remove this statement to characterize and rank the computed MCS
+rmpath(function_path);
 return
 
 %% 5) Characterization and ranking of MCS
@@ -220,6 +225,7 @@ end
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
 clear(a{:});
+rmpath(function_path);
 
 function [options,model] = derive_options_from_SLURM_array(numcode)
     settings = numcode;
@@ -228,10 +234,14 @@ function [options,model] = derive_options_from_SLURM_array(numcode)
     options.milp_reduce_constraints      = settings(2);
     options.milp_combined_z              = settings(3);
     options.milp_irrev_geq               = settings(4);
-    options.preproc_D_leth               = settings(5);
-    options.compression_network_pre_GPR  = settings(6);
+    if settings(5)
+        options.preproc_D_violations     = 2;
+    else
+        options.preproc_D_violations     = 0;
+    end
+    options.pre_GPR_network_compression  = settings(6);
     options.compression_GPR              = settings(7);
-    options.compression_network_pre_milp = settings(8);
+    options.preproc_compression          = settings(8);
     if settings(9)
         model = 'iML1515';
     else

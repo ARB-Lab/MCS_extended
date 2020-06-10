@@ -2,20 +2,24 @@
 %
 % MCS computation for the strain design of a 2,3-butanediol production host
 %
-% We enumerate all Minimal Gene Cut Sets up to the size of 9 (core) and 
-% 7 (genome-scale) for the strongly growth coupled production of 2,3-butanediol 
-% from Glucose with S. scerevisiae. The setup is used to benchmark runtime benefits 
+% We enumerate all Minimal Gene Cut Sets up to the size of 7
+% for the strongly growth coupled production of 2,3-butanediol 
+% from Glucose with Pseudomonas putida. The setup is used to benchmark runtime benefits 
 % from network and GPR rule compression for MCS computation. The results for 
 % the genome-scale setup also serve as a reference for the other MCS computation 
 % setups that use multiple target and desired regions.
 %
 % % required files/models:
-%   yeastGEM.xml - Contains the S. cerevisiae SBML model
-%   yeast_BiGGmetDictionary.csv
-%   yeast_BiGGrxnDictionary.csv
+%   iJN746.mat
 %
 % % key variables:
+%   options: compression settings
+%       options.pre_GPR_network_compression - initial network compression (on/off) (default off)
+%       options.compression_GPR - compression with GPR rules (on/off) (default on)
+%       options.preproc_compression  - final network compression (on/off) (default on)
 %   max_num_interv: defines the maximum number of possible gene cuts
+%   model: setting model = 'ECC2' (default) will load the core-setup.
+%                  model = 'iML1515' will load the genome-scale setup.
 %
 % % process:
 %   0) Start parallel pool to speed up FVAs
@@ -33,9 +37,27 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
+max_solutions           = inf;
+options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
+options.preproc_D_violations         = 0;
+options.pre_GPR_network_compression  = false;
+options.compression_GPR              = true;
+options.preproc_compression          = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches (and also other parameters if indicated) are overwritten
+if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
+    settings = str2double(getenv('SLURM_ARRAY_TASK_ID'));
+    settings = arrayfun(@str2num,dec2bin(settings,2));
+    options.compression_GPR              = settings(1);
+    options.preproc_compression          = settings(2);
+    disp(['GPR compress: '   num2str(settings(1))]);
+    disp(['Net compress: '   num2str(settings(2))]);
+end
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
@@ -48,48 +70,36 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
 end
 options.milp_time_limit    = inf;
 options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
-max_solutions              = inf;
-max_num_interv             = 7;
+max_num_interv             = 6;
+
 %% 1) Model setup
 % load model from file
-model = 'YeastGEM'; 
-cnap = CNAsbmlModel2MFNetwork(which('yeastGEM.xml'));
 
+model = 'iJN746'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
+load('iJN746.mat')
+cnap = CNAcobra2cna(iJN746);
 reac_in_core_metabolism = true(cnap.numr,1);
 
-% use Bigg-reaction identifiers
-% specs
-metDict = readcell('yeast_BiGGmetDictionary.csv','Delimiter',',');
-cnap.specID = cellstr(cnap.specID);
-cnap.specID = strrep(cnap.specID,'__91__','[');
-cnap.specID = strrep(cnap.specID,'__93__',']');
-metDict(:,2) = strrep(metDict(:,2),'[','_');
-metDict(:,2) = strrep(metDict(:,2),']','');
-for i = 1:size(metDict,1)
-    cnap.specID = strrep(cnap.specID,metDict{i,1},metDict{i,2});
-end
-cnap.specID = strrep(cnap.specID,'[','_');
-cnap.specID = strrep(cnap.specID,']','');
-cnap.specID = char(cnap.specID);
+cnap.reacMin(cnap.reacMin <= -1000) = -1000;
+cnap.reacMax(cnap.reacMax >=  1000) =  1000;
+cnap.specNotes = strcat('[', iJN746.metFormulas, ']')';
 
-% reacs
-rxnDict = readcell('yeast_BiGGrxnDictionary.csv','Delimiter',',');
-cnap.reacID = cellstr(cnap.reacID);
-for i = 1:size(rxnDict,1)
-    cnap.reacID = strrep(cnap.reacID,rxnDict{i,1},rxnDict{i,2});
-end
-cnap.reacID = char(cnap.reacID);
-
+DM_SK_reacs = find(~cellfun(@isempty,regexp(cellstr(cnap.reacID),'(DM_|SK_)')));
+DM_SK_min = cnap.reacMin(DM_SK_reacs);
+DM__SK_max = cnap.reacMax(DM_SK_reacs);
 cnap = block_non_standard_products(cnap);
-
+cnap.reacMin(DM_SK_reacs(DM_SK_min<0)) = -0.5;
+cnap.reacMin(DM_SK_reacs(DM_SK_min==0)) = 0;
+cnap.reacMax(DM_SK_reacs) = 0.5;
 cnap.reacMin(ismember(cnap.reacID,{'EX_glc__D_e'})) = -10;
-cnap.reacMax(ismember(cnap.reacID,{'EX_gcald_e'})) = 1000;
-cnap.reacMax(ismember(cnap.reacID,{'EX_glyc_e'})) = 1000;
-cnap.reacMax(ismember(cnap.reacID,{'EX_ppi_e'})) = 1000;
-cnap.reacMax(ismember(cnap.reacID,{'GRO'})) = 1000;
-cnap.reacMax(ismember(cnap.reacID,{'ATPM'})) = 1000;
+cnap.reacMax(ismember(cnap.reacID,{'EX_gly_e'})) = 1000;
+cnap.reacMax(ismember(cnap.reacID,{'EX_glyclt_e'})) = 1000;
+cnap.reacMin(logical(cnap.objFunc)) = 0; % make lower bound for biomass reaction zero
+cnap = CNAsetGenericReactionData_with_array(cnap,'geneProductAssociation',iJN746.grRules);
 
-cnap = CNAaddReactionMFN(cnap,'EX_o2_anaer_e','1 o2_e = ' ,-0.1,0,0,nan,0,...
+cnap = CNAaddReactionMFN(cnap,'EX_o2_anaer_e','1 o2_e = ' ,-0.2,0,0,nan,0,...
+'//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
+cnap = CNAaddReactionMFN(cnap,'ATPM','atp_c + 1 h2o_c = 1 h_c + 1 adp_c + 1 pi_c' ,1,1000,0,nan,0,...
 '//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
 
 % Add pathway from DOI 10.1186/s12934-018-1038-0 Erian, Pfluegl 2018
@@ -106,28 +116,25 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 % some reaction indices used in Target and Desired regions
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
-rATPM     = find(strcmp(cellstr(cnap.reacID),'ATPM'));
 rBM       = find(cnap.objFunc);
 % Target region: First compute maximum possible yield, then demand a
 % minimum yield of 30%
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_ex,-1,1,cnap.numr)));
 Y_thresh = Ymax_23bdo_per_glc * 0.3;
 disp(['Minimum product yield threshold set to ' num2str(Y_thresh)]);
-T = full(sparse(  [1         1        2       ], ... % case: single substrate
-                  [r23BDO_ex rGlc_ex  rGlc_ex ], ...
-                  [1         Y_thresh 1       ],2,cnap.numr));
-t = [ 0 ; -0.1 ];
+T = full(sparse(  [1         1        ], ... % case: single substrate
+                  [r23BDO_ex rGlc_ex  ], ...
+                  [1         Y_thresh ],1,cnap.numr));
+t = 0;
 
 % Desired region: Biomass production rate > 0.05 h^-1
-D1 = full(sparse( 1, rBM,   -1,1,cnap.numr));
-d1 = -0.05;
-D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
-d2 = -18;
+D = full(sparse( 1, rBM, -1,1,cnap.numr));
+d = -0.05;
 
 T = {T};
 t = {t};
-D = {D1 D2};
-d = {d1 d2};
+D = {D};
+d = {d};
 
 % knockables: All reactions with gene rules + O2 exchange as a potential knockout
 rkoCost = double(cellfun(@(x) ~isempty(x),CNAgetGenericReactionData_as_array(cnap,'geneProductAssociation')));
@@ -157,12 +164,14 @@ else
     valid = [];
 end
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
-    filename = ['desired2-' model '-' getenv('SLURM_JOB_ID')];
+    filename = ['benchmark-' model '-' getenv('SLURM_ARRAY_TASK_ID') '-' getenv('SLURM_JOB_ID')];
 else
-    filename = ['desired2-' model '-' datestr(date,'yyyy-mm-dd')];
+    filename = ['benchmark-' model '-' datestr(date,'yyyy-mm-dd')];
 end
 save([filename '.mat'],'gcnap','gmcs','valid','comp_time');
 
+rmpath(function_path);
+return;
 
 %% 5) Characterization and ranking of MCS
 % Instead of the gene-MCS, their corresponding reaction-representations are analyzed.
@@ -171,9 +180,9 @@ save([filename '.mat'],'gcnap','gmcs','valid','comp_time');
 % identical 'phenotypes' when translated to the reaction-model and by analyzing rMCS
 % only a reduced, non-redundant set of reaction-MCS needs therefore to be considered.
 if full(~all(all(isnan(gmcs)))) % if mcs have been found
-    cnap.local.c_makro = [];
-    cnap.local.c_makro = [];
     disp('Characterizing mcs');
+    cnap.local.c_makro = [];
+    cnap.local.c_makro = [];
   % 5.1) Lump redundant MCS and create flux bounds for each mutant model
     rmcs(isnan(rmcs)) = -inf; % this step allows to apply 'unique' too remove duplicates
     [rmcs,~,gmcs_rmcs_map] = unique(rmcs','rows');
@@ -228,4 +237,5 @@ end
 % clear irrelevant variables
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
+rmpath(function_path);
 clear(a{:});

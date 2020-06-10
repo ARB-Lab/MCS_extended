@@ -38,6 +38,10 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
+
 max_solutions   = inf;
 max_num_interv  = 6;
 options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
@@ -45,10 +49,10 @@ options.milp_split_level             = true;
 options.milp_reduce_constraints      = true;
 options.milp_combined_z              = true;
 options.milp_irrev_geq               = true;
-options.preproc_D_leth               = false;
-options.compression_network_pre_GPR  = false;
+options.preproc_D_violations         = 0;
+options.pre_GPR_network_compression  = false;
 options.compression_GPR              = true;
-options.compression_network_pre_milp = true;
+options.preproc_compression          = true;
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches are overwritten
@@ -178,6 +182,7 @@ end
 save([filename '.mat'],'gcnap','gmcs','valid');
 
 % remove this statement to characterize and rank the computed MCS
+rmpath(function_path);
 return
 
 %% 5) Characterization and ranking of MCS
@@ -243,6 +248,7 @@ save([filename '.mat'],'gmcs_rmcs_map','MCS_rankingStruct','MCS_rankingTable','c
 % clear irrelevant variables
 a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',...
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
+rmpath(function_path);
 clear(a{:});
 
 function [options,model] = derive_options_from_SLURM_array(numcode)
@@ -252,10 +258,14 @@ function [options,model] = derive_options_from_SLURM_array(numcode)
     options.milp_reduce_constraints      = settings(2);
     options.milp_combined_z              = settings(3);
     options.milp_irrev_geq               = settings(4);
-    options.preproc_D_leth               = settings(5);
-    options.compression_network_pre_GPR  = settings(6);
+    if settings(5)
+        options.preproc_D_violations     = 2;
+    else
+        options.preproc_D_violations     = 0;
+    end
+    options.pre_GPR_network_compression  = settings(6);
     options.compression_GPR              = settings(7);
-    options.compression_network_pre_milp = settings(8);
+    options.preproc_compression          = settings(8);
     if settings(9)
         model = 'iML1515';
     else

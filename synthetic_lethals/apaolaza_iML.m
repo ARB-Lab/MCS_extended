@@ -11,6 +11,9 @@
 if ~exist('cnan','var')
     startcna(1)
 end
+% Add helper functions to matlab path
+function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
+addpath(function_path);
 
 % start Cobra Toolbox
 global CBTDIR
@@ -51,7 +54,7 @@ t = {-1e-3}; % this is the default threshold used by Apaolaza
 maxSolutions = inf;
 options.mcs_search_mode     = 2; % bottom-up stepwise enumeration of MCS.
 options.preproc_check_feas  = false;
-options.preproc_D_leth      = false;
+options.preproc_D_violations= 0;
 options.postproc_verify_mcs = false;
 tic;
 [rmcs, new_mcs, new_cnap, cmp_mcs, cmp_cnap, mcs_idx_cmp_full] = CNAgeneMCSEnumerator2(cnap,T,t,{},{},[],[],maxSolutions,maxSize,[],[],gpr_Rules,options,1);
@@ -91,3 +94,4 @@ if all(sum(compare_mat,1) == 3) && all(sum(compare_mat,2) == 3)
 else
     disp('The solutions found by both approaches are not identical.')
 end
+rmpath(function_path);
