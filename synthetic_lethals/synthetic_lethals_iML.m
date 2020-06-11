@@ -12,8 +12,10 @@ if ~exist('cnan','var')
     startcna(1)
 end
 % Add helper functions to matlab path
-function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
-addpath(function_path);
+function_path1 = [fileparts(mfilename('fullpath') ) '/../functions'];
+function_path2 = [fileparts(mfilename('fullpath') ) '/../e_coli'];
+addpath(function_path1);
+addpath(function_path2);
 
 % start Cobra Toolbox
 global CBTDIR
@@ -94,4 +96,5 @@ if all(sum(compare_mat,1) == 3) && all(sum(compare_mat,2) == 3)
 else
     disp('The solutions found by both approaches are not identical.')
 end
-rmpath(function_path);
+rmpath(function_path1);
+rmpath(function_path2);
