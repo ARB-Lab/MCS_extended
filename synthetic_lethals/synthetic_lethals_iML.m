@@ -37,7 +37,6 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
 end
 
 load('iML1515.mat')
-cnap = iML1515;
 
 % cnap = CNAsetGenericReactionData_with_array(cnap,'geneProductAssociation',cellstr(strcat('gene_',cnap.reacID)));
 cnap.reacMin(cnap.reacMin>=0) = 0;
