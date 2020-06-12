@@ -1,4 +1,4 @@
-%% SLURM parpool (not relevant for computations on local machine)
+%% SLURM parpool (not used in computations on local machine)
 function pdir = start_parallel_pool_on_SLURM_node()
 tempdir = getenv('SLURM_TEMP');
 if ~isempty(tempdir) && isempty(gcp('nocreate'))

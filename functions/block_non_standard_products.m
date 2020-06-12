@@ -17,14 +17,14 @@ function cnap = block_non_standard_products(cnap)
     specsWCarbon = find(~cellfun(@isempty,specsWCarbon));
     reacsWCarbon  = cellstr(cnap.reacID(ex_reacs( ismember(ex_reacs,find(sum(cnap.stoichMat(specsWCarbon,:))))),:));
 
-    % RMin
-    % Block all carbon supplies
+    % exchange reaction lower bound
+    % block all carbon supplies
    cnap.reacMin(ismember(cnap.reacID,reacsWCarbon)) = 0;
 
-    % RMax
-    % Block all carbon sinks
+    % exchange reaction upper bound
+    % block all carbon sinks
    cnap.reacMax(ex_reacs) = 0;
-    % Open up selected carbon sinks again
+    % open up selected carbon sinks again
     cnap.reacMax(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'BIOMASS_.*_core_.*')))) = 1000;
     cnap.reacMax(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'BIOMASS_.*_WT_.*')))) = 1000;
     cnap.reacMax(ismember(cnap.reacID,{     'EX_ac_e'...

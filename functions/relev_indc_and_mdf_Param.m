@@ -8,7 +8,7 @@ function [idx,mdfParam] = relev_indc_and_mdf_Param(cnap)
     idx.cytMet = find(~cellfun(@isempty ,regexp(cellstr(cnap.specID),'_c$','match')));
     % other important species
 %     idx.pi    = find(strcmp(cellstr(cnap.specID), 'pi_c')); 
-% (adding idx.pi activates the output of coupling mechanism analysis (not yet very well implemented))
+% (adding idx.pi activates the output of coupling mechanism analysis (not yet functional))
     idx.h     = find(strcmp(cellstr(cnap.specID), 'h_c'));
     idx.h2o   = find(strcmp(cellstr(cnap.specID), 'h2o_c'));
     idx.atp   = find(strcmp(cellstr(cnap.specID), 'atp_c'));
