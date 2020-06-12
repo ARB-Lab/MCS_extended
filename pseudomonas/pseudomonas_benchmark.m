@@ -41,15 +41,19 @@ end
 function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
 addpath(function_path);
 
-max_solutions           = inf;
-options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
-options.preproc_D_violations         = 0;
-options.pre_GPR_network_compression  = false;
-options.compression_GPR              = true;
-options.preproc_compression          = true;
-% If runnning on SLURM. Use directory on internal memory to share data 
-% between the workers. If job is running as a SLURM ARRAY, the compression 
-% switches (and also other parameters if indicated) are overwritten
+max_num_interv              = 6;
+max_solutions               = inf;
+options.compression_GPR     = true; % default: true. Change to false to disable GPR compression
+options.preproc_compression = true; % default: true. Change to false to disable network compression
+options.milp_solver         = 'matlab_cplex'; % 'java_cplex'; 
+options.preproc_D_violations= 0;
+options.milp_time_limit     = inf;
+options.mcs_search_mode     = 2; % bottom-up stepwise enumeration of MCS.
+
+% If runnning on a system with a SLURM workload manager:
+% Use directory on internal memory to share data between the workers. 
+% If job is running as a SLURM ARRAY, the compression switches (and also other
+% parameters if indicated) are overwritten
 if ~isempty(getenv('SLURM_ARRAY_TASK_ID')) % overwrite options if a SLURM array is used
     settings = str2double(getenv('SLURM_ARRAY_TASK_ID'));
     settings = arrayfun(@str2num,dec2bin(settings,2));
@@ -61,21 +65,16 @@ end
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
-% If running on local machine, start parallel pool and keep compression
-% flags as defined above.
+% If running on local machine, start parallel pool if available
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
        (~isempty(ver('parallel'))  || ~isempty(ver('distcomp'))) && isempty(gcp('nocreate'))
-    parpool(); % remove this line if MATLAB Parallel Toolbox is not available
+    parpool();
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
-options.milp_time_limit    = inf;
-options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
-max_num_interv             = 6;
 
 %% 1) Model setup
-% load model from file
-
-model = 'iJN746'; % standard case -> core. CHANGE THIS PARAMETER TO iML1515 FOR GENOME-SCALE SETUP
+% load model from file and prepare it for MCS computation
+model = 'iJN746';
 load('iJN746.mat')
 cnap = CNAcobra2cna(iJN746);
 reac_in_core_metabolism = true(cnap.numr,1);
@@ -113,12 +112,12 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 '//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
 
 %% 2) Define MCS setup
-% some reaction indices used in Target and Desired regions
+% reaction indices used in Target and Desired regions
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
 rBM       = find(cnap.objFunc);
-% Target region: First compute maximum possible yield, then demand a
-% minimum yield of 30%
+% Target region: First compute maximum possible yield, then setup target 
+% region accordingly to demand a minimum yield of 30% of the theoretical maximum.
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_ex,-1,1,cnap.numr)));
 Y_thresh = Ymax_23bdo_per_glc * 0.3;
 disp(['Minimum product yield threshold set to ' num2str(Y_thresh)]);
@@ -148,11 +147,11 @@ gkoCost(ismember(genes,'spontanous')) = nan;
 %% 3) MCS Computatior
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
-                                                    rkoCost,[], ... % reackoCost,reackiCost
+                                                    rkoCost,[], ... reaction KO cost, reaction addition cost
                                                     max_solutions,max_num_interv, ...
-                                                    gkoCost,[], ...  genekoCost, genekiCost
-                                                    [],options,... gpr_rules,options
-                                                    1); % verbose, debug
+                                                    gkoCost,[], ... gene KO cost, gene addition cost
+                                                    [],options,... gpr_rules, options
+                                                    1); % verbose
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 

@@ -1,4 +1,4 @@
-% This script reproduces the results from Table 2, scenario 3. 
+% This script reproduces the results from S5 Table, Sheet S. cerevisiae, scenario 3. 
 %
 % MCS computation for the strain design of a 2,3-butanediol production host
 % using co-feeding
@@ -33,7 +33,7 @@
 %   5) Characterize and Rank results
 %
 % Correspondence: cellnetanalyzer@mpi-magdeburg.mpg.de
-% -Mar 2020
+% -Jun 2020
 %
 
 %% 0) Starting CNA and Parallel pool (for faster FVA), defining compression setting
@@ -44,25 +44,25 @@ end
 function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
 addpath(function_path);
 
-% If runnning on SLURM. Use directory on internal memory to share data 
-% between the workers. If job is running as a SLURM ARRAY, the compression 
-% switches (and also other parameters if indicated) are overwritten
+max_num_interv             = 6;
+max_solutions              = inf;
+options.milp_time_limit    = inf;
+options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
+
+% If runnning on a system with a SLURM workload manager:
+% Use directory on internal memory to share data between the workers. 
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
-% If running on local machine, start parallel pool and keep compression
-% flags as defined above.
+% If running on local machine, start parallel pool if available
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
        (~isempty(ver('parallel'))  || ~isempty(ver('distcomp'))) && isempty(gcp('nocreate'))
-    parpool(); % remove this line if MATLAB Parallel Toolbox is not available
+    parpool();
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
-options.milp_time_limit    = inf;
-options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
-max_solutions              = inf;
-max_num_interv             = 6;
+
 %% 1) Model setup
-% load model
+% load model from file and prepare it for MCS computation
 model = 'YeastGEM'; 
 cnap = CNAsbmlModel2MFNetwork(which('yeastGEM.xml'));
 
@@ -117,10 +117,9 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 cnap.reacMin(ismember(cnap.reacID,{'EX_glc__D_e'})) = -10;
 cnap = CNAaddReactionMFN(cnap,'EX_ac_up_e','1 ac_e =' ,-30,0,0,nan,0,...
 '//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
-% cnap.reacMin(ismember(cnap.reacID,{'NADH16pp'})) = -1000;
 
 %% 2) Define MCS setup
-% some reaction indices used in Target and Desired region
+% reaction indices used in Target and Desired region
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_up  = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
 rAc_up   = find(strcmp(cellstr(cnap.reacID),'EX_ac_up_e'));
@@ -130,20 +129,20 @@ rBM      = find(cnap.objFunc);
 
 % Target region - Yield is now referred to carbon uptake with 23bdo/glc as
 % the reference. The strain design task is to enforce a yield of 30% compared
-% to the maximum possible yield.
+% to the theoretical maximum yield.
 fixed_fluxes = nan(cnap.numr,1);
 fixed_fluxes(rAc_up) = 0;
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_up,-1,1,cnap.numr)),fixed_fluxes);
-Ymax_c = Ymax_23bdo_per_glc/6*4; % carbon related Yield
+Ymax_c = Ymax_23bdo_per_glc/6*4; % carbon related yield
 Y_thresh = Ymax_c * 0.3; % 30 % of the maximum carbon yield
 disp(['Minimum carbon product yield threshold set to ' num2str(Y_thresh)]);
-% T1: Under all circumstances the 2,3 BDO / glc yiled should exceed
+% T1: Under all circumstances the 2,3 BDO / glc yield should exceed
 %     the yield threshold
 T1 = full(sparse( [1         1           ], ...
                   [r23BDO_ex rGlc_up     ], ...
                   [4         6*Y_thresh	 ],1,cnap.numr));
 t1 =  0;
-% T2: If Acetate is not secreted, the 2,3 BDO / glc+ac yiled should exceed
+% T2: If Acetate is not secreted, the 2,3 BDO / glc+ac yield should exceed
 %     the yield threshold
 T2 = full(sparse( [1         1          1           2        ], ...
                   [r23BDO_ex rGlc_up    rAc_up      rAc_ex   ], ...
@@ -151,9 +150,8 @@ T2 = full(sparse( [1         1          1           2        ], ...
 t2 =  [  0 ; 0 ];
 
 % Desired regions: 
-% (1) Biomass production rate > 0.05 h^-1 if grown on glucose (or
-%     equivalent when grown on other substrates)
-% (2) ATPM >= 12 mM/gBDW/h
+% D1: Biomass yield equivalent to r_BM > 0.05 h^-1 at glucose uptake rate of 
+%     10 mmol/h/gBDW (equivalent biomass/carbon yield when grown on other substrates)
 Y_BM = 0.005; % Minimum Biomass Yield (referred to glucose / 6C)
 D1 = full(sparse( [1         1          1       ], ...
                   [rBM       rGlc_up    rAc_up  ], ...
@@ -174,18 +172,18 @@ gkoCost = ones(length(genes),1);
 gkoCost(ismember(genes,'spontanous')) = nan;
 
 gkiCost = nan(length(genes),1);
-% addibles: Glucose, glycerol or acetate supply
+% addables: Glucose, glycerol or acetate supply
 rkiCost = nan(cnap.numr,1);
 rkiCost([rGlc_up rAc_up]) = 0;
 
 %% 3) MCS Computation
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
-                                                    rkoCost,rkiCost, ... % reackoCost,reackiCost
+                                                    rkoCost,rkiCost, ...  reaction KO cost, reaction addition cost
                                                     max_solutions,max_num_interv, ...
-                                                    gkoCost,gkiCost, ...  genekoCost, genekiCost
-                                                    [],options,... gpr_rules,options
-                                                    1); % verbose, debug
+                                                    gkoCost,gkiCost, ...  gene KO cost, gene addition cost
+                                                    [],options,... gpr_rules, options
+                                                    1); % verbose
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 

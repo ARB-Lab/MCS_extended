@@ -10,7 +10,7 @@
 % the computed MCS.
 %
 % Correspondence: cellnetanalyzer@mpi-magdeburg.mpg.de
-% -Mar 2020
+% -Jun 2020
 
 % Model Setup
 cnap = struct();

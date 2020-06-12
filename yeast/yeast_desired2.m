@@ -1,13 +1,15 @@
-% This script reproduces the results from Table 1 and Table 2, scenario 1. 
+% This script reproduces the results from S5 Table, Sheet S. cerevisiae, scenario 2.
 %
 % MCS computation for the strain design of a 2,3-butanediol production host
 %
-% We enumerate all Minimal Gene Cut Sets up to the size of 9 (core) and 
-% 7 (genome-scale) for the strongly growth coupled production of 2,3-butanediol 
-% from Glucose with S. scerevisiae. The setup is used to benchmark runtime benefits 
-% from network and GPR rule compression for MCS computation. The results for 
-% the genome-scale setup also serve as a reference for the other MCS computation 
-% setups that use multiple target and desired regions.
+% We enumerate all Minimal Gene Cut Sets up to the size of 7 for the
+% strongly growth coupled production of 2,3-butanediol from Glucose with 
+% S. cerevisiae. Compared to the first scenario ("benchmark"), a second
+% desired region is introduced to make sure all strain designs support higher 
+% ATP demands (18 mM/gBDW/h). The enumerated MCS for scenario 2 
+% (for 2 desired, 1 target) must therefore represent a subset of the MCS 
+% found in the scenario 1 (1 desired, 1 Target). GPR rule compression and 
+% network compression are enabled to speed up the MCS computation.
 %
 % % required files/models:
 %   yeastGEM.xml - Contains the S. cerevisiae SBML model
@@ -37,25 +39,25 @@ end
 function_path = [fileparts(mfilename('fullpath') ) '/../functions'];
 addpath(function_path);
 
-% If runnning on SLURM. Use directory on internal memory to share data 
-% between the workers. If job is running as a SLURM ARRAY, the compression 
-% switches (and also other parameters if indicated) are overwritten
+max_num_interv             = 7;
+options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
+max_solutions              = inf;
+options.milp_time_limit    = inf;
+
+% If runnning on a system with a SLURM workload manager:
+% Use directory on internal memory to share data between the workers. 
 if ~isempty(getenv('SLURM_JOB_ID')) && isempty(gcp('nocreate'))
     % start parpool and locate preferences-directory to tmp path
     prefdir = start_parallel_pool_on_SLURM_node();
-% If running on local machine, start parallel pool and keep compression
-% flags as defined above.
+% If running on local machine, start parallel pool if available
 elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) && ...
        (~isempty(ver('parallel'))  || ~isempty(ver('distcomp'))) && isempty(gcp('nocreate'))
-    parpool(); % remove this line if MATLAB Parallel Toolbox is not available
+    parpool();
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
-options.milp_time_limit    = inf;
-options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
-max_solutions              = inf;
-max_num_interv             = 7;
+
 %% 1) Model setup
-% load model from file
+% load model from file and prepare it for MCS computation
 model = 'YeastGEM'; 
 cnap = CNAsbmlModel2MFNetwork(which('yeastGEM.xml'));
 
@@ -107,13 +109,13 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 '//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
 
 %% 2) Define MCS setup
-% some reaction indices used in Target and Desired regions
+% reaction indices used in Target and Desired regions
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
 rATPM     = find(strcmp(cellstr(cnap.reacID),'ATPM'));
 rBM       = find(cnap.objFunc);
-% Target region: First compute maximum possible yield, then demand a
-% minimum yield of 30%
+% Target region: First compute maximum possible yield, then setup target 
+% region accordingly to demand a minimum yield of 30% of the theoretical maximum.
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_ex,-1,1,cnap.numr)));
 Y_thresh = Ymax_23bdo_per_glc * 0.3;
 disp(['Minimum product yield threshold set to ' num2str(Y_thresh)]);
@@ -122,7 +124,9 @@ T = full(sparse(  [1         1        2       ], ... % case: single substrate
                   [1         Y_thresh 1       ],2,cnap.numr));
 t = [ 0 ; -0.1 ];
 
-% Desired region: Biomass production rate > 0.05 h^-1
+% Desired regions: 
+% D1: Biomass production rate > 0.05 h^-1, 
+% D2: ATPM >= 18 mM/gBDW/h
 D1 = full(sparse( 1, rBM,   -1,1,cnap.numr));
 d1 = -0.05;
 D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
@@ -145,11 +149,11 @@ gkoCost(ismember(genes,'spontanous')) = nan;
 %% 3) MCS Computatior
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
-                                                    rkoCost,[], ... % reackoCost,reackiCost
+                                                    rkoCost,[], ... reaction KO cost, reaction addition cost
                                                     max_solutions,max_num_interv, ...
-                                                    gkoCost,[], ...  genekoCost, genekiCost
-                                                    [],options,... gpr_rules,options
-                                                    1); % verbose, debug
+                                                    gkoCost,[], ... gene KO cost, gene addition cost
+                                                    [],options,... gpr_rules, options
+                                                    1); % verbose
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 

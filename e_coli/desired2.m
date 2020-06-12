@@ -7,10 +7,10 @@
 % strongly growth coupled production of 2,3-butanediol from Glucose with 
 % E. coli. Compared to the first scenario ("benchmark"), a second
 % desired region is introduced to make sure all strain designs support higher 
-% ATP demands (18 mM/gBDW/h). The enumerated MCS (for 2 desired, 1 target) 
-% must therefore represent a subset of the MCS found in the first setup 
-% (1 desired, 1 Target). GPR rule compression and network compression 
-% are enabled to speed up the MCS computation.
+% ATP demands (18 mM/gBDW/h). The enumerated MCS for scenario 2 
+% (for 2 desired, 1 target) must therefore represent a subset of the MCS 
+% found in the scenario 1 (1 desired, 1 Target). GPR rule compression and 
+% network compression are enabled to speed up the MCS computation.
 %
 % % required files/models:
 %   iML1515.mat
@@ -28,7 +28,7 @@
 %   5) Characterize and Rank results
 %
 % Correspondence: cellnetanalyzer@mpi-magdeburg.mpg.de
-% -Mar 2020
+% -Jun 2020
 %
 
 %% 0) Starting CNA and Parallel pool (for faster FVA), defining compression setting
@@ -42,14 +42,8 @@ addpath(function_path);
 max_solutions   = inf;
 max_num_interv  = 7;
 options.milp_solver     = 'matlab_cplex'; % 'java_cplex'; 
-options.milp_split_level             = true;
-options.milp_reduce_constraints      = true;
-options.milp_combined_z              = true;
-options.milp_irrev_geq               = true;
 options.preproc_D_violations         = 0;
-options.pre_GPR_network_compression  = false;
-options.compression_GPR              = true;
-options.preproc_compression          = true;
+
 % If runnning on SLURM. Use directory on internal memory to share data 
 % between the workers. If job is running as a SLURM ARRAY, the compression 
 % switches are overwritten
@@ -67,8 +61,7 @@ elseif license('test','Distrib_Computing_Toolbox') && isempty(getCurrentTask()) 
     wait(parfevalOnAll(@startcna,0,1)); % startcna on all workers
 end
 options.preproc_check_feas = false;
-options.milp_time_limit    = inf;
-options.mcs_search_mode    = 2; % bottom-up stepwise enumeration of MCS.
+
 %% 1) Model setup
 % load model
 load('iML1515.mat')
@@ -86,24 +79,26 @@ cnap = CNAaddReactionMFN(cnap,'EX_23bdo_e','1 23bdo_c =' ,0,1000,0,nan,0,...
 '//START_GENERIC_DATA{;:;deltaGR_0;#;num;#;NaN;:;uncertGR_0;#;num;#;NaN;:;geneProductAssociation;#;str;#;;:;}//END_GENERIC_DATA',0,0,0,0);
 
 %% 2) Define MCS setup
-% some reaction indices used in Target and Desired region
+% reaction indices used in Target and Desired region
 r23BDO_ex = find(strcmp(cellstr(cnap.reacID),'EX_23bdo_e'));
 rGlc_ex   = find(strcmp(cellstr(cnap.reacID),'EX_glc__D_e'));
 rBM       = find(~cellfun(@isempty,(regexp(cellstr(cnap.reacID),'BIOMASS_.*_core_.*'))));
 rATPM     = find(strcmp(cellstr(cnap.reacID),'ATPM'));
-% Target region: First compute maximum possible yield, then demand a
-% minimum yield of 30%
+% Target region: First compute maximum possible yield, then setup target 
+% region accordingly to demand a minimum yield of 30% of the theoretical maximum.
 Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr)),full(sparse(1,rGlc_ex,-1,1,cnap.numr)));
 Y_thresh = Ymax_23bdo_per_glc * 0.3;
+disp('');
 disp(['Minimum product yield threshold set to ' num2str(Y_thresh)]);
+disp('');
 T = full(sparse(  [1         1        ], ... % case: single substrate - glucose
                   [r23BDO_ex rGlc_ex  ], ...
                   [1         Y_thresh ],1,cnap.numr));
 t = 0;
 
 % Desired regions: 
-% (1) Biomass production rate > 0.05 h^-1, 
-% (2) ATPM >= 18 mM/gBDW/h
+% D1: Biomass production rate > 0.05 h^-1, 
+% D2: ATPM >= 18 mM/gBDW/h
 D1 = full(sparse( 1, rBM,   -1,1,cnap.numr));
 d1 = -0.05;
 D2 = full(sparse( 1, rATPM, -1,1,cnap.numr));
@@ -126,11 +121,11 @@ gkoCost(ismember(genes,'spontanous')) = nan;
 %% 3) MCS Computation
 tic;
 [rmcs, gmcs, gcnap, cmp_gmcs, cmp_gcnap, mcs_idx] = CNAgeneMCSEnumerator2(cnap, T, t, D, d,...
-                                                    rkoCost,[], ... % reackoCost,reackiCost
+                                                    rkoCost,[], ... reaction KO cost, reaction addition cost
                                                     max_solutions,max_num_interv, ...
-                                                    gkoCost,[], ...  genekoCost, genekiCost
-                                                    [],options,... gpr_rules,options
-                                                    1); % verbose, debug
+                                                    gkoCost,[], ... gene KO cost, gene addition cost
+                                                    [],options,... gpr_rules, options
+                                                    1); % verbose
 comp_time = toc;
 disp(['Computation time: ' num2str(comp_time) ' s']);
 
@@ -146,7 +141,7 @@ if ~isempty(getenv('SLURM_ARRAY_TASK_ID'))
 else
     filename = ['desired2-' model '-' datestr(date,'yyyy-mm-dd')];
 end
-save([filename '.mat'],'gcnap','gmcs','valid');
+save([filename '.mat'],'cnap','rmcs','gcnap','gmcs','valid');
 
 % remove this statement to characterize and rank the computed MCS
 rmpath(function_path);
@@ -216,6 +211,8 @@ a=[setdiff(who,{'cnap','rmcs','D','d','T','t','compression','filename','gcnap',.
                 'gmcs','gmcs_rmcs_map','gpr_rules','rmcs','valid','comp_time'});{'a'}];
 rmpath(function_path);
 clear(a{:});
+
+%% Supplementary function. Only used inr systems with SLURM workload management.
 
 function [options,model] = derive_options_from_SLURM_array(numcode)
     settings = numcode;
