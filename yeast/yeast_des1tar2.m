@@ -172,7 +172,7 @@ gkoCost = ones(length(genes),1);
 gkoCost(ismember(genes,'spontanous')) = nan;
 
 gkiCost = nan(length(genes),1);
-% addables: Glucose, glycerol or acetate supply
+% addables: Glucose or acetate supply
 rkiCost = nan(cnap.numr,1);
 rkiCost([rGlc_up rAc_up]) = 0;
 

@@ -131,13 +131,13 @@ Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr
 Ymax_c = Ymax_23bdo_per_glc/6*4; % carbon related yield
 Y_thresh = Ymax_c * 0.3; % 30 % of the maximum carbon yield
 disp(['Minimum carbon product yield threshold set to ' num2str(Y_thresh)]);
-% T1: Under all circumstances the 2,3 BDO / glc yiled should exceed
+% T1: Under all circumstances the 2,3 BDO / glc yield should exceed
 %     the yield threshold
 T1 = full(sparse( [1         1           ], ...
                   [r23BDO_ex rGlc_up     ], ...
                   [4         6*Y_thresh	 ],1,cnap.numr));
 t1 =  0;
-% T2: If Acetate is not secreted, the 2,3 BDO / glc+ac yiled should exceed
+% T2: If Acetate is not secreted, the 2,3 BDO / glc+ac yield should exceed
 %     the yield threshold
 T2 = full(sparse( [1         1          1           2        ], ...
                   [r23BDO_ex rGlc_up    rAc_up      rAc_ex   ], ...

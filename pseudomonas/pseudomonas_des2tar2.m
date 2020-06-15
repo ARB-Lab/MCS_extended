@@ -118,13 +118,13 @@ Ymax_23bdo_per_glc = CNAoptimizeYield(cnap,full(sparse(1,r23BDO_ex,1,1,cnap.numr
 Ymax_c = Ymax_23bdo_per_glc/6*4; % carbon related yield
 Y_thresh = Ymax_c * 0.3; % 30 % of the maximum carbon yield
 disp(['Minimum carbon product yield threshold set to ' num2str(Y_thresh)]);
-% T1: Under all circumstances the 2,3 BDO / glc+glyc yiled should exceed
+% T1: Under all circumstances the 2,3 BDO / glc+glyc yield should exceed
 %     the yield threshold
 T1 = full(sparse( [1         1          1          ], ...
                   [r23BDO_ex rGlc_up    rGlyc_up   ], ...
                   [4         6*Y_thresh	3*Y_thresh ],1,cnap.numr));
 t1 =  0;
-% T2: If Acetate is not secreted, the 2,3 BDO / glc+glyc+ac yiled should exceed
+% T2: If Acetate is not secreted, the 2,3 BDO / glc+glyc+ac yield should exceed
 %     the yield threshold
 T2 = full(sparse( [1         1          1           1           2      ], ...
                   [r23BDO_ex rGlc_up    rGlyc_up    rAc_up      rAc_ex ], ...
@@ -135,6 +135,7 @@ t2 =  [  0 ; 0 ];
 % D1: Biomass yield equivalent to r_BM > 0.05 h^-1 at glucose uptake rate of 
 %     10 mmol/h/gBDW (equivalent biomass/carbon yield when grown on other substrates)
 % D2: ATPM >= 18 mM/gBDW/h
+Y_BM = 0.005; % Minimum Biomass Yield (referred to glucose / 6C)
 D1 = full(sparse( [1         1          1          1       ], ...
                   [rBM       rGlc_up    rGlyc_up   rAc_up  ], ...
                   [-6        -6*Y_BM    -3*Y_BM    -2*Y_BM ],1,cnap.numr));
