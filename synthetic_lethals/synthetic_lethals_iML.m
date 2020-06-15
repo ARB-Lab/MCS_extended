@@ -1,7 +1,7 @@
-% This script compares the new geneMCSEnumerator2 with the existing gMCS 
+% This script compares our new CNAgeneMCSEnumerator2 with the existing gMCS 
 % approach by Apaolaza et al. 2017 (https://doi.org/10.1038/s41467-017-00555-y) (and Apaolaza et al. 2019)
 % by computing synthetic lethals up to the size of 4 gene deletions in the genome-scale
-% E. coli model iML1515. Finally the script returns the computation time and the 
+% E. coli model iML1515. The script returns the computation time and the 
 % number of solutions for both cases.
 %
 % -Jun 2020
