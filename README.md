@@ -24,9 +24,9 @@ Software Requirements:
 
 1.  MATLAB 2016b® or later
 
-2.  IBM ILOG® CPLEX® 12.7, 12.8, 12.9 or 12.10 (Make sure to use compatible CPLEX® and MATLAB® versions)
+2.  IBM ILOG® CPLEX® 12.7, 12.8, 12.9 or 12.10 (Make sure to use compatible CPLEX® and MATLAB® versions. Version 12.10 is recommended.)
 
-3.  CellNetAnalyzer2020.1
+3.  CellNetAnalyzer2020.2
 
 4.  Set up *CellNetAnalyzer* to access the CPLEX-Matlab-API (replace the CPLEX-default paths in startcna.m with the paths to your CPLEX installation as described by *CellNetAnalyzer* manual)
     
@@ -34,7 +34,7 @@ Getting Started:
 ----------------------
 1. Download this project to your computer (see release page https://github.com/ARB-Lab/MCS_extended/releases) and extract all files.
 2. Start MATLAB.
-3. Navigate to the main directory of your *CellNetAnalyzer* Toolbox. By executing **pwd** you can verify that the CNA main directory is now your current woking directory.
+3. Navigate to the main directory of your installation of the *CellNetAnalyzer* toolbox. By executing **pwd** you can verify that the CNA main directory is now your current woking directory.
 4. Start *CellNetAnalyzer* by executing **startcna** or **startcna(1)**  (silent start).
 5. *Either* navigate to the path of the script in this project that you want to execute *or* add all folders from this project to your MATLAB® path by a right click on the project folder and "Add to path" -> "Selected folders and subfolders"
 
@@ -71,7 +71,7 @@ Script Files:
    Computes and characterizes genome-scale gene-MCS for the production of
    2,3-BDO in *E.coli* from a similar setup as in scenario 1 (benchmark.m). A second
    desired region is added to the setup to ensure that strain designs support higher ATP
-   maintanance rates. The results of scenario 2 are saved to a .mat file in the working directory and
+   maintanance rates (scenario 2 in Table2). The results of scenario 2 are saved to a .mat file in the working directory and
    the MCS characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
    of a return statement after MCS computation. To activate it, remove this return statement.
 
@@ -79,7 +79,7 @@ Script Files:
 
    Computes and characterizes genome-scale gene-MCS for the production of
    2,3-BDO in *E.coli.* A second target region is added to scenario 1 to compute, at the same time, 
-   single substrate and co-feeding strategies using glucose, acetate and glycerol. Therefore, 
+   single substrate and co-feeding strategies using glucose, acetate and glycerol (scenario 3 in Table 2). Therefore, 
    the supply reactions for glucose, acetate and glycerol are specified as addition candidates. 
    Results of scenario 3 are saved to a .mat file in the working directory and the MCS
    characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
@@ -88,9 +88,9 @@ Script Files:
 6. e_coli/**des2tar2.m**
 
    Computes and characterizes genome-scale gene-MCS for the production of
-   2,3-BDO in *E. coli.* In addition to the changes in scenario 3, a second desired
-   region is added to demand the support of higher ATP maintanance rates. This
-   setup shows that a combination of multiple target and desired regions is
+   2,3-BDO in *E. coli.* In addition to scenario 3, a second desired
+   region is added to demand the support of higher ATP maintanance rates (scenario 4 in Table 2). 
+   This setup shows that a combination of multiple target and desired regions is
    possible and generates again qualitatively new solutions. Results of 
    scenario 4 are saved to a .mat file in the working directory and the MCS
    characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
@@ -173,12 +173,12 @@ Script Files:
    
 15. synthetic_lethals/**synthetic_lethals_iML.m**
    
-    Computes synthetic lethals in the genome scale *E. coli* model iML1515 up to the size of 4 gene knockouts. 
-    The results of both functions are checked for consistency and the runtimes of both methods are returned in 
-    a command window output.
+    Computes synthetic lethals in the genome scale *E. coli* model iML1515 up to the size of 4 gene knockouts 
+    via the gMCS algorithm of Apaolaza and via our MCS algorithm in CellNetAnalyzer. The results of both functions 
+    are checked for consistency and the runtimes of both methods are returned in a command window output.
 
-Minor functions required for scripts:
--------------
+Minor functions required for the scripts above:
+-----------------------------------------------
 
 16. functions/**verify_mcs.m** 
 
@@ -212,8 +212,8 @@ Model files:
 29. yeast/**yeast_BiGGrxnDictionary.csv** - Dictionary to replace the reaction identifiers from yeastGEM with Bigg identifiers
 
 
-New (API) functions - included in the most recent *CellNetAnalyzer* toolbox and not available in this repository:
--------------
+Relevant new (API) functions included in the most recent release (2020.2) of the *CellNetAnalyzer* toolbox :
+------------------------------------------------------------------------------------------------------------
 
 * **CNAgeneMCSEnumerator2**
 
