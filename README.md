@@ -37,7 +37,6 @@ Getting Started:
 3. Navigate to the main directory of your *CellNetAnalyzer* Toolbox. By executing **pwd** you can verify that the CNA main directory is now your current woking directory.
 4. Start *CellNetAnalyzer* by executing **startcna** or **startcna(1)**  (silent start).
 5. *Either* navigate to the path of the script in this project that you want to execute *or* add all folders from this project to your MATLAB® path by a right click on the project folder and "Add to path" -> "Selected folders and subfolders"
-6. Run script
 
 Script Files:
 -------------
