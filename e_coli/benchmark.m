@@ -84,7 +84,7 @@ switch model
         cnap.reacMin(ismember(cnap.reacID,{'EX_glc__D_e'})) = -10;
         max_num_interv  = 7;
     case 'ECC2'
-        load('benchmark_ECC2.mat')
+        load('ECC2.mat')
         reac_in_core_metabolism = true(cnap.numr,1);
         cnap.reacMax(ismember(cnap.reacID,{'EX_glyc_e'})) = 0;
         cnap.reacMax(ismember(cnap.reacID,{'EX_glc__D_e'})) = 0;
