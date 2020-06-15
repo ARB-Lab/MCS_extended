@@ -126,13 +126,13 @@ Script Files:
    
 10. pseudomonas/**pseudomonas_des2tar2.m**
 
-   Computes and characterizes genome-scale gene-MCS for the production of
-   2,3-BDO in *P. putida* In addition to the changes in pseudomonas_des1tar2, a second desired
-   region is added to demand the support of higher ATP maintanance rates. This
-   setup shows that a combination of multiple target and desired regions is
-   possible and generates again qualitatively new solutions. Results of 
-   this computation are saved to a .mat file in the working directory and the MCS
-   characterization/ranking is saved as a .tsv table.
+    Computes and characterizes genome-scale gene-MCS for the production of
+    2,3-BDO in *P. putida* In addition to the changes in pseudomonas_des1tar2, a second desired
+    region is added to demand the support of higher ATP maintanance rates. This
+    setup shows that a combination of multiple target and desired regions is
+    possible and generates again qualitatively new solutions. Results of 
+    this computation are saved to a .mat file in the working directory and the MCS
+    characterization/ranking is saved as a .tsv table.
    
 11. yeast/**yeast_benchmark.m**
 
@@ -144,39 +144,39 @@ Script Files:
 
 12. yeast/**yeast_desired2.m**
 
-   Computes and characterizes genome-scale gene-MCS for the production of
-   2,3-BDO in *S. cerevisiae* from a similar setup as in yeast_benchmark. A second
-   desired region is added to the setup to ensure that strain designs support higher ATP
-   maintanance rates. The results of this computation are saved to a .mat file in the working directory and
-   the MCS characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
-   of a return statement after MCS computation. To activate it, remove this return statement.
+    Computes and characterizes genome-scale gene-MCS for the production of
+    2,3-BDO in *S. cerevisiae* from a similar setup as in yeast_benchmark. A second
+    desired region is added to the setup to ensure that strain designs support higher ATP
+    maintanance rates. The results of this computation are saved to a .mat file in the working directory and
+    the MCS characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
+    of a return statement after MCS computation. To activate it, remove this return statement.
 
 13. yeast/**yeast_des1tar2.m**
 
-   Computes and characterizes genome-scale gene-MCS for the production of
-   2,3-BDO in *S. cerevisiae* A second target region is added to the benchmark setup to compute, at the same time, 
-   single substrate and co-feeding strategies using glucose and acetate. Therefore, 
-   the supply reactions for glucose and acetate are specified as addition candidates. 
-   Results of this computation are saved to a .mat file in the working directory and the MCS
-   characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
-   of a return statement after MCS computation. To activate it, remove this return statement.
+    Computes and characterizes genome-scale gene-MCS for the production of
+    2,3-BDO in *S. cerevisiae* A second target region is added to the benchmark setup to compute, at the same time, 
+    single substrate and co-feeding strategies using glucose and acetate. Therefore, 
+    the supply reactions for glucose and acetate are specified as addition candidates. 
+    Results of this computation are saved to a .mat file in the working directory and the MCS
+    characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
+    of a return statement after MCS computation. To activate it, remove this return statement.
    
 14. yeast/**yeast_des2tar2.m**
 
-   Computes and characterizes genome-scale gene-MCS for the production of
-   2,3-BDO in *S. cerevisiae* In addition to the changes in yeast_des1tar2, a second desired
-   region is added to demand the support of higher ATP maintanance rates. This
-   setup shows that a combination of multiple target and desired regions is
-   possible and generates again qualitatively new solutions. Results of 
-   this computation are saved to a .mat file in the working directory and the MCS
-   characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
-   of a return statement after MCS computation. To activate it, remove this return statement.
+    Computes and characterizes genome-scale gene-MCS for the production of
+    2,3-BDO in *S. cerevisiae* In addition to the changes in yeast_des1tar2, a second desired
+    region is added to demand the support of higher ATP maintanance rates. This
+    setup shows that a combination of multiple target and desired regions is
+    possible and generates again qualitatively new solutions. Results of 
+    this computation are saved to a .mat file in the working directory and the MCS
+    characterization/ranking is saved as a .tsv table. By default MCS characterization is skipped because 
+    of a return statement after MCS computation. To activate it, remove this return statement.
    
 15. synthetic_lethals/**synthetic_lethals_iML.m**
    
-   Computes synthetic lethals in the genome scale *E. coli* model iML1515 up to the size of 4 gene knockouts. 
-   The results of both functions are checked for consistency and the runtimes of both methods are returned in 
-   a command window output.
+    Computes synthetic lethals in the genome scale *E. coli* model iML1515 up to the size of 4 gene knockouts. 
+    The results of both functions are checked for consistency and the runtimes of both methods are returned in 
+    a command window output.
 
 Minor functions required for scripts:
 -------------
@@ -200,13 +200,13 @@ Minor functions required for scripts:
 Model files:
 -------------
 
-24. e_coli/**benchmark_iJOcore.mat** - E. coli core model required for script (3)
+24. e_coli/**benchmark_iJOcore.mat** - *E. coli* core model required for script (3)
 
-25. e_coli/**iML1515.mat** - genome scale E. coli model required for scripts (3-6)
+25. e_coli/**iML1515.mat** - genome scale *E. coli* model required for scripts (3-6)
 
-26. pseudomonas/**iJN746.mat** - genome scale P. putida model required for scripts (7-10)
+26. pseudomonas/**iJN746.mat** - genome scale *P. putida* model required for scripts (7-10)
 
-27. yeast/**yeastGEM.xml** - genome scale S. cerevisiae model required for scripts (11-14)
+27. yeast/**yeastGEM.xml** - genome scale *S. cerevisiae* model required for scripts (11-14)
 
 28. yeast/**yeast_BiGGmetDictionary.csv** - Dictionary to replace the species identifiers from yeastGEM with Bigg identifiers
 
