@@ -24,7 +24,7 @@ Software Requirements:
 
 1.  MATLAB 2016b® or later
 
-2.  IBM ILOG® CPLEX® 12.7, 12.8, 12.9 or 12.10 (Make sure tu use compatible CPLEX® and MATLAB® versions)
+2.  IBM ILOG® CPLEX® 12.7, 12.8, 12.9 or 12.10 (Make sure to use compatible CPLEX® and MATLAB® versions)
 
 3.  CellNetAnalyzer2020.1
 
