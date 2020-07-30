@@ -59,8 +59,8 @@ function [feas_T, feas_D] = verify_mcs(cnap,mcs,T,t,D,d,koCost,kiCost,verbose)
         cnap_valid = cnap;
         cnap_valid.reacMin(mcs(:,i)) = 0;
         cnap_valid.reacMax(mcs(:,i)) = 0;
-		feas_D{i} = testRegionFeas(cnap,D,d,2);
-		feas_T{i} = testRegionFeas(cnap,T,t,2);
+		feas_D{i} = testRegionFeas(cnap_valid,D,d,2);
+		feas_T{i} = testRegionFeas(cnap_valid,T,t,2);
         if verbose
             if any(feas_T{i})
                 disp(['At least one target region (T' strrep(num2str(find(feas_T{i})'),'  ',',') ') is feasible in mutant model of mcs ' num2str(i)]);
